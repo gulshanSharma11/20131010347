@@ -1,39 +1,32 @@
-from flask import Flask, request, jsonify
-import requests
-import gevent
-from gevent import monkey
+const express = require('express');
+const axios = require('axios');
 
-monkey.patch_all()
+const app = express();
+const PORT = 8008;
 
-app = Flask(__name__)
+app.get('/numbers', async (req, res) => {
+    const urls = req.query.url || [];
+    const results = [];
 
-def fetch_data(url):
-    try:
-        response = requests.get(url, timeout=2)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("numbers", [])
-    except Exception as e:
-        print(f"Error fetching data from {url}: {e}")
-    return []
+    const fetchData = async url => {
+        try {
+            const response = await axios.get(url, { timeout: 500 });
+            if (response.status === 200) {
+                const data = response.data.numbers || [];
+                results.push(...data);
+            }
+        } catch (error) {
+            console.error(`Error fetching data from ${url}: ${error.message}`);
+        }
+    };
 
-@app.route('/numbers', methods=['GET'])
-def get_numbers():
-    urls = request.args.getlist('url')
-    
-    results = []
-    jobs = [gevent.spawn(fetch_data, url) for url in urls]
-    gevent.joinall(jobs, timeout=0.5)
-    
-    for job in jobs:
-        result = job.value
-        if result:
-            results.extend(result)
+    await Promise.all(urls.map(fetchData));
 
-    results = list(set(results))
-    results.sort()
+    const uniqueNumbers = Array.from(new Set(results)).sort((a, b) => a - b);
 
-    return jsonify({"numbers": results})
+    res.json({ numbers: uniqueNumbers });
+});
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8008)
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
